@@ -1,10 +1,13 @@
 var express = require('express')
   , mongo = require('mongoskin')
   , mu = require('mu2')
-  , item = require('./models/item')
+  , async = require('async')
+  , Post = require('./models/post')
   , app = express.createServer();
 
 var db = mongo.db('mongo://localhost/test');
+Post.db = db;
+
 
 mu.root = __dirname + '/templates';
 
@@ -24,28 +27,17 @@ app.use(function (req, res, next) {
 
   db.collection('sessions')
     .findOne({_id: token}, function (err, user) {
-      if (err) {
-        res.send(500, {error: 'Something blew up: ' + err.message});
-      } else {
-        req.user = user;
-        next();
-      }
+      if (err) return next(err);
+
+      req.user = user;
+      next();
     });
-});
-
-
-app.get('/posts', function (req, res, next) {
-  if (!req.user.isAdmin) {
-    return next();
-  }
-
-  // .. do admin stuff
 });
 
 
 // Setup a route
 app.get('/posts', function (req, res, next) {
-  item.findNewestPostsWithComments(function (err, posts) {
+  Post.findNewestPostsWithComments(function (err, posts) {
     if (err) return next(err);
 
     var view = {
@@ -63,46 +55,20 @@ app.get('/posts', function (req, res, next) {
 app.get('/posts/:postId', function (req, res, next) {
   var postId = req.params.postId;
 
-  db.collection('posts')
-    .findOne({_id: postId}, function (err, post) {
-      if (err) {
-        res.send(500, {error: 'Something blew up: ' + err.message});
-      } else if (post == null) {
-        res.send(404);
-      } else {
-        db.collection('comments')
-          .find({postId: {$in: [postId]}})
-          .toArray(function (err, comments) {
-            if (err) {
-              res.send(500, {error: 'Something blew up: ' + err.message});
-            } else {
-              post.comments = comments;
+  Post.findByIdWithComments(postId, function (err, post) {
+    if (err) return next(err);
 
-              var view = {
-                user: req.user,
-                post: post
-              };
+    var view = {
+      user: req.user,
+      post: post
+    };
 
-              res.writeHead(200, {});
-
-              var stream = mu.compileAndRender('post.html', view);
-
-              stream.on('error', function (err) {
-                console.log(err);
-              });
-
-              stream.on('data', function (data) {
-                res.write(data);
-              });
-
-              stream.on('end', function () {
-                res.end();
-              });
-            }
-          });
-      }
-    });
+    res.writeHead(200, {});
+    mu.compileAndRender('post.html', view).pipe(res);
+  });
 });
+
+
 
 app.post('/posts', function (req, res, next) {
   var id = 'post-' + Date.now();
@@ -152,7 +118,3 @@ app.error(function (req, res, next, error) {
 
 
 app.listen(process.env.PORT || 8000);
-
-
-// stuff
-// "async": "0.1.15",

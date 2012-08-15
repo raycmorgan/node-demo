@@ -13,7 +13,8 @@
   "dependencies": {
     "express": "2.5.4",
     "mu2": "0.5.15",
-    "mongoskin": "0.3.7"
+    "mongoskin": "0.3.7",
+    "async": "0.1.15"
   },
   "main": "index",
   "engines": {
