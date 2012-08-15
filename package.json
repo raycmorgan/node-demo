@@ -1,0 +1,27 @@
+{
+  "name": "node-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An example app",
+  "keywords": [
+    ""
+  ],
+  "author": "Ray Morgan <ray@rumgr.com>",
+  "contributors": [
+    "Ray Morgan <ray@rumgr.com>"
+  ],
+  "dependencies": {
+    "express": "2.5.4",
+    "mu2": "0.5.15",
+    "mongoskin": "0.3.7"
+  },
+  "main": "index",
+  "engines": {
+    "node": "0.6.13",
+    "npm": "1.1.9"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "devDependencies": {}
+}

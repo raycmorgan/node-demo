@@ -1,0 +1,14 @@
+<html>
+<body>
+  <h2>Posts:</h2>
+  {{#posts}}
+    <h3><a href="/posts/{{_id}}">{{title}}</a></h3>
+
+    {{#comments}}
+      <p>{{comment}}</p>
+    {{/comments}}
+
+    <hr />
+  {{/posts}}
+</body>
+</html>
