@@ -1,6 +1,7 @@
 var express = require('express')
   , mongo = require('mongoskin')
   , mu = require('mu2')
+  , item = require('./models/item')
   , app = express.createServer();
 
 var db = mongo.db('mongo://localhost/test');
@@ -8,13 +9,17 @@ var db = mongo.db('mongo://localhost/test');
 mu.root = __dirname + '/templates';
 
 
+APP_DIR = __dirname;
+
+
+
 // Add some middleware
 app.use(express.bodyParser());
 app.use(express.cookieParser());
 app.use(express.logger());
 
-// Setup a route
-app.get('/posts', function (req, res, next) {
+
+app.use(function (req, res, next) {
   var token = req.cookies.token;
 
   db.collection('sessions')
@@ -22,109 +27,77 @@ app.get('/posts', function (req, res, next) {
       if (err) {
         res.send(500, {error: 'Something blew up: ' + err.message});
       } else {
-        db.collection('posts')
-          .find()
-          .limit(10)
-          .sort([['createdAt', -1]])
-          .toArray(function (err, posts) {
-            if (err) {
-              res.send(500, {error: 'Something blew up: ' + err.message});
-            } else {
-              var postIds = [];
-              for (var i = 0; i < posts.length; i++) {
-                postIds.push(posts[i]._id);
-              }
-
-              db.collection('comments')
-                .find({postId: {$in: postIds}})
-                .toArray(function (err, comments) {
-                  if (err) {
-                    res.send(500, {error: 'Something blew up: ' + err.message});
-                  } else {
-                    for (var i = 0; i < posts.length; i++) {
-                      posts[i].comments = [];
-                      for (var j = 0; j < comments.length; j++) {
-                        if (comments[j].postId == posts[i]._id) {
-                          posts[i].comments.push(comments[j]);
-                        }
-                      }
-                    }
-
-                    var view = {
-                      user: user,
-                      posts: posts
-                    };
-
-                    res.writeHead(200, {});
-
-                    var stream = mu.compileAndRender('posts.html', view);
-
-                    stream.on('error', function (err) {
-                      console.log(err);
-                    });
-
-                    stream.on('data', function (data) {
-                      res.write(data);
-                    });
-
-                    stream.on('end', function () {
-                      res.end();
-                    });
-                  }
-                });
-            }
-          });
+        req.user = user;
+        next();
       }
     });
 });
 
 
-app.get('/posts/:postId', function (req, res, next) {
-  var token = req.cookies.token
-    , postId = req.params.postId;
+app.get('/posts', function (req, res, next) {
+  if (!req.user.isAdmin) {
+    return next();
+  }
 
-  db.collection('sessions')
-    .findOne({_id: token}, function (err, user) {
+  // .. do admin stuff
+});
+
+
+// Setup a route
+app.get('/posts', function (req, res, next) {
+  item.findNewestPostsWithComments(function (err, posts) {
+    if (err) return next(err);
+
+    var view = {
+      user: req.user,
+      posts: posts
+    };
+
+    res.writeHead(200, {});
+    var stream = mu.compileAndRender('posts.html', view);
+    stream.pipe(res);
+  });
+});
+
+
+app.get('/posts/:postId', function (req, res, next) {
+  var postId = req.params.postId;
+
+  db.collection('posts')
+    .findOne({_id: postId}, function (err, post) {
       if (err) {
         res.send(500, {error: 'Something blew up: ' + err.message});
+      } else if (post == null) {
+        res.send(404);
       } else {
-        db.collection('posts')
-          .findOne({_id: postId}, function (err, post) {
+        db.collection('comments')
+          .find({postId: {$in: [postId]}})
+          .toArray(function (err, comments) {
             if (err) {
               res.send(500, {error: 'Something blew up: ' + err.message});
-            } else if (post == null) {
-              res.send(404);
             } else {
-              db.collection('comments')
-                .find({postId: {$in: [postId]}})
-                .toArray(function (err, comments) {
-                  if (err) {
-                    res.send(500, {error: 'Something blew up: ' + err.message});
-                  } else {
-                    post.comments = comments;
+              post.comments = comments;
 
-                    var view = {
-                      user: user,
-                      post: post
-                    };
+              var view = {
+                user: req.user,
+                post: post
+              };
 
-                    res.writeHead(200, {});
+              res.writeHead(200, {});
 
-                    var stream = mu.compileAndRender('post.html', view);
+              var stream = mu.compileAndRender('post.html', view);
 
-                    stream.on('error', function (err) {
-                      console.log(err);
-                    });
+              stream.on('error', function (err) {
+                console.log(err);
+              });
 
-                    stream.on('data', function (data) {
-                      res.write(data);
-                    });
+              stream.on('data', function (data) {
+                res.write(data);
+              });
 
-                    stream.on('end', function () {
-                      res.end();
-                    });
-                  }
-                });
+              stream.on('end', function () {
+                res.end();
+              });
             }
           });
       }
@@ -170,6 +143,11 @@ app.post('/posts/:postId/comments', function (req, res, next) {
         res.json({ok: true, id: id}, 201);
       }
     })
+});
+
+
+app.error(function (req, res, next, error) {
+
 });
 
 
